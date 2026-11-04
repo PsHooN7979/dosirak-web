@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "757786556371",
+    "project_id": "dosirak-web",
+    "storage_bucket": "dosirak-web.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:757786556371:android:e563e8e173b62f388ae126",
+        "android_client_info": {
+          "package_name": "com.example.dosirak_web"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBur-fqui-zsxyvUPijMPA0FiMiFUBzCGg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

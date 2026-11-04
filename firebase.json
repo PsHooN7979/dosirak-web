@@ -1,0 +1,56 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "dosirak-web",
+          "appId": "1:757786556371:android:e563e8e173b62f388ae126",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "dosirak-web",
+          "configurations": {
+            "android": "1:757786556371:android:e563e8e173b62f388ae126",
+            "ios": "1:757786556371:ios:edb1d4564ecebe0b8ae126",
+            "macos": "1:757786556371:ios:edb1d4564ecebe0b8ae126",
+            "web": "1:757786556371:web:b834624a48072df48ae126",
+            "windows": "1:757786556371:web:a1e3e1b27847c1358ae126"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint"
+      ]
+    }
+  ],
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
