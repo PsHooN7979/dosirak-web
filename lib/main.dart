@@ -4,8 +4,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dosirak_core.dart';
@@ -251,6 +253,7 @@ class _TodayTabState extends State<TodayTab> {
                     members.where((m) => m.active || totals.containsKey(m.id)).toList();
 
                 return Column(children: [
+                  const _MenuCard(),
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     IconButton(icon: const Icon(Icons.chevron_left), onPressed: () => _move(-1)),
                     Text('${month.year}년 ${month.month}월',
@@ -610,6 +613,98 @@ class _NotifSectionState extends State<_NotifSection> {
               onChanged: (_) => _select(m),
             ),
         ]);
+      },
+    );
+  }
+}
+
+// ───────── 식단표 ─────────
+class _MenuCard extends StatefulWidget {
+  const _MenuCard();
+  @override
+  State<_MenuCard> createState() => _MenuCardState();
+}
+
+class _MenuCardState extends State<_MenuCard> {
+  bool _uploading = false;
+
+  Future<void> _upload() async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (image == null) return;
+
+    setState(() => _uploading = true);
+    try {
+      final bytes = await image.readAsBytes();
+      final ref = FirebaseStorage.instance.ref().child('menu/latest.jpg');
+      await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      final url = await ref.getDownloadURL();
+      await db.collection('settings').doc('menu').set({
+        'url': url,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  void _showImage(BuildContext context, String url) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog.fullscreen(
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                child: Image.network(url, fit: BoxFit.contain),
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton.filled(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: db.collection('settings').doc('menu').snapshots(),
+      builder: (context, snap) {
+        final url = snap.data?.data()?['url'] as String?;
+        return Card(
+          child: ListTile(
+            leading: const Icon(Icons.restaurant_menu),
+            title: const Text('이번 주 식단표'),
+            subtitle: url == null ? const Text('아직 등록된 식단표가 없어요') : null,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (url != null)
+                  FilledButton.tonal(
+                    onPressed: () => _showImage(context, url),
+                    child: const Text('메뉴 확인'),
+                  ),
+                if (url != null) const SizedBox(width: 8),
+                _uploading
+                    ? const SizedBox(
+                        width: 36, height: 36,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : FilledButton(
+                        onPressed: _upload,
+                        child: const Text('올리기'),
+                      ),
+              ],
+            ),
+          ),
+        );
       },
     );
   }
