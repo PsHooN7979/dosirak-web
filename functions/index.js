@@ -4,6 +4,7 @@
 // 배포: firebase deploy --only functions
 
 const {onRequest} = require("firebase-functions/v2/https");
+const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {defineSecret} = require("firebase-functions/params");
 const admin = require("firebase-admin");
 
@@ -46,6 +47,92 @@ function parseNotification(raw, members) {
   }
   return {member, message, lines};
 }
+
+// ───────── 가격 이력에서 특정 날짜 단가 계산 ─────────
+function priceOn(prices, dateStr) {
+  if (prices.length === 0) return 0;
+  let price = prices[0].price;
+  for (const p of prices) {
+    if (p.from <= dateStr) price = p.price;
+  }
+  return price;
+}
+
+function won(n) {
+  return n.toLocaleString("ko-KR") + "원";
+}
+
+// ───────── 매월 1일 오전 9시 (KST) 정산 알림 ─────────
+exports.monthlySettlement = onSchedule(
+    {schedule: "0 0 1 * *", timeZone: "Asia/Seoul", region: "asia-northeast3"},
+    async () => {
+      const now = new Date(Date.now() + 9 * 3600 * 1000); // KST
+      const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const month = now.getMonth() === 0 ? 12 : now.getMonth();
+      const pad = (n) => String(n).padStart(2, "0");
+      const startDate = `${year}-${pad(month)}-01`;
+      const endDate = month === 12
+        ? `${year + 1}-01-01`
+        : `${year}-${pad(month + 1)}-01`;
+
+      const [membersSnap, mealsSnap, pricesSnap, tokensSnap] = await Promise.all([
+        db.collection("members").where("active", "==", true).get(),
+        db.collection("meals").where("date", ">=", startDate).where("date", "<", endDate).get(),
+        db.collection("prices").get(),
+        db.collection("device_tokens").get(),
+      ]);
+
+      const members = membersSnap.docs.reduce((acc, d) => {
+        acc[d.id] = d.data().name;
+        return acc;
+      }, {});
+
+      const prices = pricesSnap.docs
+          .map((d) => ({from: d.data().from, price: d.data().price}))
+          .sort((a, b) => a.from.localeCompare(b.from));
+
+      // 멤버별 총액·일수 계산
+      const totals = {};
+      const eatDays = {};
+      for (const doc of mealsSnap.docs) {
+        const {date, memberId, count} = doc.data();
+        if ((count || 0) <= 0) continue;
+        const price = priceOn(prices, date);
+        totals[memberId] = (totals[memberId] || 0) + count * price;
+        eatDays[memberId] = (eatDays[memberId] || 0) + 1;
+      }
+
+      const messaging = admin.messaging();
+      const staleTokens = [];
+
+      for (const tokenDoc of tokensSnap.docs) {
+        const {fcmToken, memberId} = tokenDoc.data();
+        if (!fcmToken || !memberId || !members[memberId]) continue;
+
+        const name = members[memberId];
+        const total = totals[memberId] || 0;
+        const days = eatDays[memberId] || 0;
+
+        try {
+          await messaging.send({
+            token: fcmToken,
+            notification: {
+              title: `🍱 ${month}월 도시락 정산`,
+              body: `${name}님 ${days}일 먹음 → ${won(total)}`,
+            },
+            android: {notification: {channelId: "dosirak_settlement"}},
+          });
+        } catch (e) {
+          if (e.code === "messaging/registration-token-not-registered") {
+            staleTokens.push(tokenDoc.ref);
+          }
+        }
+      }
+
+      // 만료된 토큰 정리
+      await Promise.all(staleTokens.map((ref) => ref.delete()));
+    },
+);
 
 exports.kakaoWebhook = onRequest(
     {region: "asia-northeast3", secrets: [WEBHOOK_TOKEN]},
