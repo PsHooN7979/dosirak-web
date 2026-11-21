@@ -22,7 +22,7 @@ String won(int n) =>
     '${n.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',')}원';
 
 // ───────── Firestore 스트림 ─────────
-// members: {name, kakaoNick, active, order}
+// members: {name, active, order}
 // prices (문서ID=적용시작일): {from: 'yyyy-MM-dd', price}
 // meals  (문서ID=날짜_memberId): {date, memberId, count}  ← count>0 이면 먹는 날
 
@@ -41,7 +41,7 @@ Stream<List<Member>> membersStream() => db.collection('members').snapshots().map
         return Member(
           id: d.id,
           name: m['name'] ?? '',
-          kakaoNick: m['kakaoNick'] ?? '',
+          kakaoNick: m['name'] ?? '',
           active: m['active'] ?? true,
         );
       }).toList();
@@ -726,14 +726,13 @@ class _MemberSection extends StatelessWidget {
               final v = await askFields(
                 context,
                 '인원 수정',
-                ['이름 (현재: ${member.name})', '카톡 닉네임 (현재: ${member.kakaoNick})'],
+                ['이름 (현재: ${member.name})'],
               );
               if (v == null) return;
               final newName = v[0].isEmpty ? member.name : v[0];
-              final newNick = v[1].isEmpty ? member.kakaoNick : v[1];
               await db.collection('members').doc(member.id).update({
                 'name': newName,
-                'kakaoNick': newNick,
+                'kakaoNick': newName,
               });
             },
           ),
@@ -778,17 +777,17 @@ class _MemberSection extends StatelessWidget {
         return Column(children: [
           ListTile(
             title: const Text('인원'),
-            subtitle: const Text('왼쪽 ≡ 아이콘을 끌어서 순서를 바꿔요 (달력·정산에 같은 순서로 표시)\n스위치를 끄면 비활성 처리돼요 (과거 정산은 유지)'),
+            subtitle: const Text('왼쪽 ≡ 아이콘을 끌어서 순서를 바꿔요 (달력·정산에 같은 순서로 표시)\n길게 누르면 수정·삭제, 스위치를 끄면 비활성 처리돼요'),
             isThreeLine: true,
             trailing: FilledButton(
               onPressed: () async {
-                final v = await askFields(context, '인원 추가', ['이름', '카톡 닉네임']);
+                final v = await askFields(context, '인원 추가', ['이름']);
                 if (v == null || v[0].isEmpty) return;
                 await db.collection('members').add({
                   'name': v[0],
-                  'kakaoNick': v[1].isEmpty ? v[0] : v[1],
+                  'kakaoNick': v[0],
                   'active': true,
-                  'order': members.length, // 맨 뒤에 추가
+                  'order': members.length,
                 });
               },
               child: const Text('추가'),
@@ -817,7 +816,7 @@ class _MemberSection extends StatelessWidget {
                     child: const Icon(Icons.drag_handle),
                   ),
                   title: Text(members[i].name),
-                  subtitle: Text('카톡: ${members[i].kakaoNick}'),
+                  subtitle: null,
                   trailing: Switch(
                     value: members[i].active,
                     onChanged: (v) =>
