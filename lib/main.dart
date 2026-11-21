@@ -713,6 +713,62 @@ class _MenuCardState extends State<_MenuCard> {
 class _MemberSection extends StatelessWidget {
   const _MemberSection();
 
+  void _showMemberOptions(BuildContext context, Member member) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.edit),
+            title: const Text('수정'),
+            onTap: () async {
+              Navigator.pop(ctx);
+              final v = await askFields(
+                context,
+                '인원 수정',
+                ['이름 (현재: ${member.name})', '카톡 닉네임 (현재: ${member.kakaoNick})'],
+              );
+              if (v == null) return;
+              final newName = v[0].isEmpty ? member.name : v[0];
+              final newNick = v[1].isEmpty ? member.kakaoNick : v[1];
+              await db.collection('members').doc(member.id).update({
+                'name': newName,
+                'kakaoNick': newNick,
+              });
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete, color: Colors.red),
+            title: const Text('삭제', style: TextStyle(color: Colors.red)),
+            onTap: () async {
+              Navigator.pop(ctx);
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (dCtx) => AlertDialog(
+                  title: const Text('인원 삭제'),
+                  content: Text('${member.name}을(를) 삭제하면 과거 식사 기록도 모두 사라져요.\n정말 삭제할까요?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dCtx, false),
+                      child: const Text('취소'),
+                    ),
+                    FilledButton(
+                      style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                      onPressed: () => Navigator.pop(dCtx, true),
+                      child: const Text('삭제'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed != true) return;
+              await db.collection('members').doc(member.id).delete();
+            },
+          ),
+        ]),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Member>>(
@@ -767,6 +823,7 @@ class _MemberSection extends StatelessWidget {
                     onChanged: (v) =>
                         db.collection('members').doc(members[i].id).update({'active': v}),
                   ),
+                  onLongPress: () => _showMemberOptions(context, members[i]),
                 ),
             ],
           ),
