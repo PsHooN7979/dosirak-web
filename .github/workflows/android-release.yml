@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*.*.*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -67,3 +70,4 @@ jobs:
           files: build/app/outputs/flutter-apk/dosirak-${{ steps.get_version.outputs.VERSION }}.apk
           draft: false
           prerelease: false
+          make_latest: true
