@@ -49,6 +49,11 @@ function parseNotification(raw, members) {
 }
 
 // ───────── 가격 이력에서 특정 날짜 단가 계산 ─────────
+/**
+ * @param {Array} prices 가격 이력
+ * @param {string} dateStr 날짜 문자열
+ * @return {number} 해당 날짜 단가
+ */
 function priceOn(prices, dateStr) {
   if (prices.length === 0) return 0;
   let price = prices[0].price;
@@ -58,6 +63,10 @@ function priceOn(prices, dateStr) {
   return price;
 }
 
+/**
+ * @param {number} n 금액
+ * @return {string} 원화 문자열
+ */
 function won(n) {
   return n.toLocaleString("ko-KR") + "원";
 }
@@ -67,20 +76,26 @@ exports.monthlySettlement = onSchedule(
     {schedule: "0 0 1 * *", timeZone: "Asia/Seoul", region: "asia-northeast3"},
     async () => {
       const now = new Date(Date.now() + 9 * 3600 * 1000); // KST
-      const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-      const month = now.getMonth() === 0 ? 12 : now.getMonth();
+      const m0 = now.getMonth();
+      const year = m0 === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const month = m0 === 0 ? 12 : m0;
       const pad = (n) => String(n).padStart(2, "0");
       const startDate = `${year}-${pad(month)}-01`;
-      const endDate = month === 12
-        ? `${year + 1}-01-01`
-        : `${year}-${pad(month + 1)}-01`;
+      const endDate = month === 12 ?
+        `${year + 1}-01-01` :
+        `${year}-${pad(month + 1)}-01`;
 
-      const [membersSnap, mealsSnap, pricesSnap, tokensSnap] = await Promise.all([
-        db.collection("members").where("active", "==", true).get(),
-        db.collection("meals").where("date", ">=", startDate).where("date", "<", endDate).get(),
-        db.collection("prices").get(),
-        db.collection("device_tokens").get(),
-      ]);
+      const mealsQuery = db.collection("meals")
+          .where("date", ">=", startDate)
+          .where("date", "<", endDate);
+      const membersQuery = db.collection("members").where("active", "==", true);
+      const [membersSnap, mealsSnap, pricesSnap, tokensSnap] =
+        await Promise.all([
+          membersQuery.get(),
+          mealsQuery.get(),
+          db.collection("prices").get(),
+          db.collection("device_tokens").get(),
+        ]);
 
       const members = membersSnap.docs.reduce((acc, d) => {
         acc[d.id] = d.data().name;
